@@ -103,6 +103,9 @@ void Process::setState(State new_state, uint64_t current_time)
         launch_time = current_time;
     }
     state = new_state;
+
+    //in email Prof said that we could either add getters and setters for current_burst AND/OR could update the current_burst when 
+    //setting state to Ready/IO
 }
 
 void Process::setCpuCore(int8_t core_num)
@@ -138,13 +141,11 @@ void Process::updateBurstTime(int burst_idx, uint32_t new_time)
 // SJF - comparator for sorting read queue based on shortest remaining CPU time
 bool SjfComparator::operator ()(const Process *p1, const Process *p2)
 {
-    // your code here!
-    return false; // change this!
+    return ((*p1).getRemainingTime() < (*p2).getRemainingTime());
 }
 
 // PP - comparator for sorting read queue based on priority
 bool PpComparator::operator ()(const Process *p1, const Process *p2)
 {
-    // your code here!
-    return false; // change this!
+    return ((*p1).getPriority() < (*p2).getPriority()); //lower num = higher priority
 }
