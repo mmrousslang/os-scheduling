@@ -24,7 +24,9 @@ Process::Process(ProcessDetails details, uint64_t current_time)
     turn_time = 0;
     wait_time = 0;
     cpu_time = 0;
-    remain_time = 0;
+    termNumber = 0;
+    readyQlastTime = current_time;
+    runningQlastTime = current_time;
     for (i = 0; i < num_bursts; i+=2)
     {
         remain_time += burst_times[i];
@@ -83,13 +85,19 @@ double Process::getWaitTime() const
 
 double Process::getCpuTime() const
 {
-    return (double)cpu_time / 1000.0;
+    return (double)cpu_time / 1000.0; 
 }
 
 double Process::getRemainingTime() const
 {
     return (double)remain_time / 1000.0;
 }
+
+uint32_t Process::getCurrentBurstTime(uint16_t burstIdx) const
+{ 
+    return burst_times[burstIdx];
+}
+
 
 void Process::setBurstStartTime(uint64_t current_time)
 {
@@ -103,9 +111,14 @@ void Process::setState(State new_state, uint64_t current_time)
         launch_time = current_time;
     }
     state = new_state;
+}
 
-    //in email Prof said that we could either add getters and setters for current_burst AND/OR could update the current_burst when 
-    //setting state to Ready/IO
+void Process::setCurrentBurst(uint16_t burstNum){
+    current_burst = burstNum;
+}
+
+uint16_t Process::getCurrentBurst() const{
+    return current_burst;
 }
 
 void Process::setCpuCore(int8_t core_num)
@@ -127,11 +140,48 @@ void Process::updateProcess(uint64_t current_time)
 {
     // use `current_time` to update turnaround time, wait time, burst times, 
     // cpu time, and remaining time
+
+    turn_time = current_time - launch_time;
+
+    if(state == State::Ready){
+        wait_time += (current_time - readyQlastTime);
+        readyQlastTime = current_time;
+    }
+
+    if(state == State::Running){
+        cpu_time += (current_time - runningQlastTime);
+        remain_time -= (current_time - runningQlastTime);
+
+        runningQlastTime = current_time;
+    }
+
+    if(state == State::Terminated){ //this is only so Remain Time won't print out as -0.0
+        remain_time = 0.0;
+    }
+}
+
+void Process::setTermNumber(int termNum){
+    termNumber = termNum;
+}
+
+int Process::getTermNumber(){
+    return termNumber;
+}
+
+void Process::setReadyQlastTime(uint32_t current_time){
+    readyQlastTime = current_time;
+}
+void Process::setRunningQlastTime(uint32_t current_time){
+    runningQlastTime = current_time;
 }
 
 void Process::updateBurstTime(int burst_idx, uint32_t new_time)
 {
     burst_times[burst_idx] = new_time;
+}
+
+uint16_t Process::getNumberOfBursts() const {
+    return num_bursts;
 }
 
 

@@ -24,6 +24,9 @@ private:
     int32_t cpu_time;           // total time spent running on a CPU core
     int32_t remain_time;        // CPU time remaining until terminated
     uint64_t launch_time;       // actual time in ms (since epoch) that process was 'launched'
+    uint32_t readyQlastTime;
+    uint32_t runningQlastTime;
+    int termNumber;
     // you are welcome to add other private data fields here if you so choose
 
 public:
@@ -41,6 +44,7 @@ public:
     double getWaitTime() const;
     double getCpuTime() const;
     double getRemainingTime() const;
+    uint32_t getCurrentBurstTime(uint16_t burstIdx) const;
 
     void setBurstStartTime(uint64_t current_time);
     void setState(State new_state, uint64_t current_time);
@@ -50,6 +54,14 @@ public:
 
     void updateProcess(uint64_t current_time);
     void updateBurstTime(int burst_idx, uint32_t new_time);
+
+    void setCurrentBurst(uint16_t burstNum);
+    uint16_t getCurrentBurst() const;
+    uint16_t getNumberOfBursts() const;
+    void setReadyQlastTime(uint32_t current_time);
+    void setRunningQlastTime(uint32_t current_time);
+    void setTermNumber(int termNum);
+    int getTermNumber();
 };
 
 // Comparators: used in std::list sort() method
