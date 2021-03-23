@@ -229,7 +229,7 @@ int main(int argc, char **argv)
     if(processes.size() > 1){
         printf("\nFinal Statistics:\n - CPU utilization: \033[32m%.1f%%\033[0m\n - Throughput\n    - Average for first 50%% of processes finished: \033[32m%.1f seconds per process\033[0m\n    - Average for second 50%% of processes finished: \033[32m%.1f seconds per process\033[0m\n    - Overall average: \033[32m%.1f seconds per process\033[0m\n - Average turnaround time: \033[32m%.1f seconds\033[0m\n - Average waiting time: \033[32m%.1f seconds\033[0m\n", cpuUt, throughputFirst, throughputSecond, throughputOverall, avgTurnaround, avgWait);
     }else {
-        printf("\nFinal Statistics:\n - CPU utilization: \033[32m%.1f%%\033[0m\n - Throughput\n    - Average for first 50%% of processes finished: \033[32m%.1f seconds per process\033[0m\n    - Overall average: \033[32m%.1f seconds per process\033[0m\n - Average turnaround time: \033[32m%.1f seconds\033[0m\n - Average waiting time: \033[32m%.1f seconds\033[0m\n", cpuUt, throughputFirst, throughputFirst, avgTurnaround, avgWait);
+        printf("\nFinal Statistics:\n - CPU utilization: \033[32m%.1f%%\033[0m\n - Throughput\n    - Average for first 50%% of processes finished: \033[32m%.1f seconds per process\033[0m\n    - Overall average: \033[32m%.1f seconds per process\033[0m\n - Average turnaround time: \033[32m%.1f seconds\033[0m\n - Average waiting time: \033[32m%.1f seconds\033[0m\n", cpuUt, throughputSecond, throughputSecond, avgTurnaround, avgWait);
     }
 
 
