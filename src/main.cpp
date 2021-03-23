@@ -21,9 +21,6 @@ typedef struct SchedulerData
     std::list<Process *> ready_queue;
     bool all_terminated;
     int termNumber;
-    // uint64_t termTimeFirstend;
-    // uint64_t termTimeSecondstart;
-    // uint64_t termTimeSecondend;
 } SchedulerData;
 
 void coreRunProcesses(uint8_t core_id, SchedulerData *data);
@@ -56,7 +53,7 @@ int main(int argc, char **argv)
     shared_data->context_switch = config->context_switch;
     shared_data->time_slice = config->time_slice;
     shared_data->all_terminated = false;
-    shared_data->termNumber = 1;
+    shared_data->termNumber = 0;
 
     // Create processes
     uint64_t start = currentTime();
@@ -83,6 +80,7 @@ int main(int argc, char **argv)
 
     // Main thread work goes here
     int num_lines = 0;
+
     while (!(shared_data->all_terminated))
     {
         // Clear output from previous iteration
@@ -90,7 +88,7 @@ int main(int argc, char **argv)
 
         // Do the following:
         //   - Get current time
-        uint64_t currTime = currentTime(); //leave
+        uint64_t currTime = currentTime(); 
 
         { //"fake" class for mutex
             std::lock_guard<std::mutex> lock(shared_data->mutex);
@@ -149,6 +147,7 @@ int main(int argc, char **argv)
             }
 
             //   - *Sort the ready queue (if needed - based on scheduling algorithm)
+
             if (shared_data->algorithm == ScheduleAlgorithm::SJF)
             {
                 shared_data->ready_queue.sort(SjfComparator());
@@ -190,31 +189,36 @@ int main(int argc, char **argv)
 
     double avgTurnaround = 0;
     double avgWait = 0;
+    double throughputFirst = 0;
+    double throughputSecond = 0;
+    int firstCount = 0;;
+    int secondCount = 0;
+    double cpuUt = 0;
 
     for(i = 0; i < processes.size(); i++){
         avgTurnaround += processes[i]->getTurnaroundTime();
         avgWait += processes[i]->getWaitTime();
+        cpuUt += (processes[i]->getCpuTime()/processes[i]->getTurnaroundTime());
+
+        if(processes[i]->getTermNumber() < (processes.size()/2)) {
+            throughputFirst += processes[i]->getTurnaroundTime();
+            firstCount++;
+
+        }else {
+            throughputSecond += processes[i]->getTurnaroundTime();
+            secondCount++;
+        }
     }
     avgTurnaround = avgTurnaround/processes.size();
     avgWait = avgWait/processes.size();
-
-    //getTermNumber();
+    throughputFirst = throughputFirst / firstCount;
+    throughputSecond = throughputSecond / secondCount;
+    double throughputOverall = (throughputFirst + throughputSecond)/2;
+    cpuUt = 1 - (cpuUt/processes.size());
+    cpuUt = cpuUt * 100.0;
 
 
     // print final statistics
-    std::cout << std::endl << "Final Statistics:" << std::endl;
-    std::cout << "    - CPU Utilization: " << std::endl;
-    std::cout << "    - Throughput: " << std::endl;
-    std::cout << "        - Average for first 50% of processes finished: " << std::endl;
-    std::cout << "        - Average for second 50% of processes finished:" << std::endl;
-    std::cout << "        - Average overall:" << std::endl;
-    std::cout << "    - Average turnaround time: " << avgTurnaround << std::endl;
-    std::cout << "    - Average waiting time: " << avgWait << std::endl;
-
-    //            printf("| %5u | %8u | %10s | %4s | %9.1lf | %9.1lf | %8.1lf | %11.1lf |\n",
-                   //pid, priority, process_state.c_str(), cpu_core.c_str(), turn_time,
-                   //wait_time, cpu_time, remain_time);
-
     //  - CPU utilization
     //  - Throughput
     //     - Average for first 50% of processes finished
@@ -222,6 +226,12 @@ int main(int argc, char **argv)
     //     - Overall average
     //  - Average turnaround time
     //  - Average waiting time
+    if(processes.size() > 1){
+        printf("\nFinal Statistics:\n - CPU utilization: \033[32m%.1f%%\033[0m\n - Throughput\n    - Average for first 50%% of processes finished: \033[32m%.1f seconds per process\033[0m\n    - Average for second 50%% of processes finished: \033[32m%.1f seconds per process\033[0m\n    - Overall average: \033[32m%.1f seconds per process\033[0m\n - Average turnaround time: \033[32m%.1f seconds\033[0m\n - Average waiting time: \033[32m%.1f seconds\033[0m\n", cpuUt, throughputFirst, throughputSecond, throughputOverall, avgTurnaround, avgWait);
+    }else {
+        printf("\nFinal Statistics:\n - CPU utilization: \033[32m%.1f%%\033[0m\n - Throughput\n    - Average for first 50%% of processes finished: \033[32m%.1f seconds per process\033[0m\n    - Overall average: \033[32m%.1f seconds per process\033[0m\n - Average turnaround time: \033[32m%.1f seconds\033[0m\n - Average waiting time: \033[32m%.1f seconds\033[0m\n", cpuUt, throughputFirst, throughputFirst, avgTurnaround, avgWait);
+    }
+
 
     // Clean up before quitting program
     processes.clear();
@@ -236,26 +246,34 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
     Process *p = NULL;
     while (!(shared_data->all_terminated))
     {
-        uint64_t currTime = currentTime(); //leave
-        if (p == NULL && shared_data->ready_queue.size() > 0)
+        uint64_t currTime = currentTime(); 
+        if (p == NULL)
         {
             { //"fake" class for mutex
                 std::lock_guard<std::mutex> lock(shared_data->mutex);
-                //   - *Get process at front of ready queue
-                p = shared_data->ready_queue.front();
-                shared_data->ready_queue.remove(shared_data->ready_queue.front());
+                if(shared_data->ready_queue.size() > 0){
+                    //   - *Get process at front of ready queue
+                    p = shared_data->ready_queue.front();
+                    shared_data->ready_queue.remove(shared_data->ready_queue.front());
+                }
+
             } //end of "fake" class for mutex
 
-            p->setRunningQlastTime(currentTime());
-            p->setState(Process::State::Running, 0);
+            if(p != NULL){
+                p->setRunningQlastTime(currentTime());
+                p->setState(Process::State::Running, 0);
             
-            p->setBurstStartTime(currentTime());
+                p->setBurstStartTime(currentTime());
 
-            if (p->getCurrentBurst() != 0)
-            {
-                p->setCurrentBurst(p->getCurrentBurst() + 1);
+                if (p->getCurrentBurst() != 0 && !p->isInterrupted())
+                {
+                    p->setCurrentBurst(p->getCurrentBurst() + 1);
+                }else {
+                    p->interruptHandled();
+                }
+
+                p->setCpuCore(core_id);
             }
-            p->setCpuCore(core_id);
         }
 
         if (p != NULL)
@@ -267,6 +285,9 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
             if (timeDiff >= p->getCurrentBurstTime(burstNum))
             { //check if CPU burst time has elapsed
                 // Place the process back in the appropriate queue
+                if(p->isInterrupted()){ //if there is an interrupt signal sent and the process happens to also finish its CPU burst at the same time
+                    p->interruptHandled();
+                }
 
                 p->updateBurstTime(burstNum, 0);
 
@@ -299,10 +320,11 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                 //update the burstTime 
                 int64_t timeDiff = currentTime() - p->getBurstStartTime();
                 uint32_t currBurstTime = p->getCurrentBurstTime(p->getCurrentBurst());
+
                 currBurstTime = currBurstTime - timeDiff;
 
                 p->updateBurstTime(p->getCurrentBurst(), currBurstTime);
-                p->interruptHandled();
+
                 { //"fake" class for mutex
                     std::lock_guard<std::mutex> lock(shared_data->mutex);
                     p->setReadyQlastTime(currentTime());
@@ -311,7 +333,6 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                     p->setCpuCore(-1);
                     shared_data->ready_queue.push_back(p);
                 } //end of "fake" class for mutex
-
                 p = NULL;
             }
 
@@ -324,14 +345,11 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
             //     - Terminated if CPU burst finished and no more bursts remain -- no actual queue, simply set state to Terminated
             //     - *Ready queue if interrupted (be sure to modify the CPU burst time to now reflect the remaining time)
 
-            //}
-            // std::cout << "After interrupt and time check thread\n";
-
             //  - Wait context switching time
             usleep(shared_data->context_switch); //right? and need the other sleep too?
         }
         // sleep 50 ms
-        usleep(50000); //might not need - look back at video
+        //usleep(50000); 
         //  - * = accesses shared data (ready queue), so be sure to use proper synchronization
     }
 }
@@ -341,8 +359,8 @@ int printProcessOutput(std::vector<Process *> &processes, std::mutex &mutex)
     int i;
     int num_lines = 2;
     std::lock_guard<std::mutex> lock(mutex);
-    printf("|   PID | Priority |      State | Core | Turn Time | Wait Time | CPU Time | Remain Time |\n");
-    printf("+-------+----------+------------+------+-----------+-----------+----------+-------------+\n");
+    printf("|   PID | Priority |      State | Core | Turn Time | Wait Time | CPU Time | Remain Time | BURST NUM |\n");
+    printf("+-------+----------+------------+------+-----------+-----------+----------+-------------+-----------+\n");
     for (i = 0; i < processes.size(); i++)
     {
         if (processes[i]->getState() != Process::State::NotStarted)
@@ -356,9 +374,10 @@ int printProcessOutput(std::vector<Process *> &processes, std::mutex &mutex)
             double wait_time = processes[i]->getWaitTime();
             double cpu_time = processes[i]->getCpuTime();
             double remain_time = processes[i]->getRemainingTime();
-            printf("| %5u | %8u | %10s | %4s | %9.1lf | %9.1lf | %8.1lf | %11.1lf |\n",
+            double currBurst = processes[i]->getCurrentBurst();
+            printf("| %5u | %8u | %10s | %4s | %9.1lf | %9.1lf | %8.1lf | %11.1lf | %11.1lf |\n",
                    pid, priority, process_state.c_str(), cpu_core.c_str(), turn_time,
-                   wait_time, cpu_time, remain_time);
+                   wait_time, cpu_time, remain_time, currBurst);
             num_lines++;
         }
     }
