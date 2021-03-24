@@ -1,3 +1,4 @@
+//./bin/osscheduler ./resrc/config_01.txt
 #include <iostream>
 #include <string>
 #include <list>
@@ -90,7 +91,7 @@ int main(int argc, char **argv)
         //   - Get current time
         uint64_t currTime = currentTime(); 
 
-        { //"fake" class for mutex
+        { //"fake" scope for mutex
             std::lock_guard<std::mutex> lock(shared_data->mutex);
             //   - *Check if any processes need to move from NotStarted to Ready (based on elapsed time), and if so put that process in the ready queue
             for (i = 0; i < processes.size(); i++)
@@ -156,7 +157,7 @@ int main(int argc, char **argv)
             {
                 shared_data->ready_queue.sort(PpComparator());
             }
-        } //end of "fake" class for mutex
+        } //end of "fake" scope for mutex
 
         //   - Determine if all processes are in the terminated state
         bool term = true;
@@ -249,7 +250,7 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
         uint64_t currTime = currentTime(); 
         if (p == NULL)
         {
-            { //"fake" class for mutex
+            { //"fake" scope for mutex
                 std::lock_guard<std::mutex> lock(shared_data->mutex);
                 if(shared_data->ready_queue.size() > 0){
                     //   - *Get process at front of ready queue
@@ -257,7 +258,7 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                     shared_data->ready_queue.remove(shared_data->ready_queue.front());
                 }
 
-            } //end of "fake" class for mutex
+            } //end of "fake" scope for mutex
 
             if(p != NULL){
                 p->setRunningQlastTime(currentTime());
@@ -294,11 +295,11 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
                 if (burstNum + 1 == totalBursts)
                 { //no more bursts remain and current cpu burst finished --> set state to terminated
                     p->setState(Process::State::Terminated, 0);
-                    {
+                    { //"fake" scope for mutex
                         std::lock_guard<std::mutex> lock(shared_data->mutex);
                         p->setTermNumber(shared_data->termNumber);
                         shared_data->termNumber++;
-                    }
+                    }//end "fake" scope for mutex
                     p->setCpuCore(-1);
                     p = NULL;
                 }
@@ -325,14 +326,14 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
 
                 p->updateBurstTime(p->getCurrentBurst(), currBurstTime);
 
-                { //"fake" class for mutex
+                { //"fake" scope for mutex
                     std::lock_guard<std::mutex> lock(shared_data->mutex);
                     p->setReadyQlastTime(currentTime());
                     p->setRunningQlastTime(currentTime());
                     p->setState(Process::State::Ready, 0);
                     p->setCpuCore(-1);
                     shared_data->ready_queue.push_back(p);
-                } //end of "fake" class for mutex
+                } //end of "fake" scope for mutex
                 p = NULL;
             }
 
@@ -346,10 +347,10 @@ void coreRunProcesses(uint8_t core_id, SchedulerData *shared_data)
             //     - *Ready queue if interrupted (be sure to modify the CPU burst time to now reflect the remaining time)
 
             //  - Wait context switching time
-            usleep(shared_data->context_switch); //right? and need the other sleep too?
+            if(p == NULL){
+                usleep(shared_data->context_switch); //context switch time
+            }
         }
-        // sleep 50 ms
-        //usleep(50000); 
         //  - * = accesses shared data (ready queue), so be sure to use proper synchronization
     }
 }
@@ -359,8 +360,8 @@ int printProcessOutput(std::vector<Process *> &processes, std::mutex &mutex)
     int i;
     int num_lines = 2;
     std::lock_guard<std::mutex> lock(mutex);
-    printf("|   PID | Priority |      State | Core | Turn Time | Wait Time | CPU Time | Remain Time | BURST NUM |\n");
-    printf("+-------+----------+------------+------+-----------+-----------+----------+-------------+-----------+\n");
+    printf("|   PID | Priority |      State | Core | Turn Time | Wait Time | CPU Time | Remain Time |\n");
+    printf("+-------+----------+------------+------+-----------+-----------+----------+-------------+\n");
     for (i = 0; i < processes.size(); i++)
     {
         if (processes[i]->getState() != Process::State::NotStarted)
@@ -374,10 +375,9 @@ int printProcessOutput(std::vector<Process *> &processes, std::mutex &mutex)
             double wait_time = processes[i]->getWaitTime();
             double cpu_time = processes[i]->getCpuTime();
             double remain_time = processes[i]->getRemainingTime();
-            double currBurst = processes[i]->getCurrentBurst();
-            printf("| %5u | %8u | %10s | %4s | %9.1lf | %9.1lf | %8.1lf | %11.1lf | %11.1lf |\n",
+            printf("| %5u | %8u | %10s | %4s | %9.1lf | %9.1lf | %8.1lf | %11.1lf |\n",
                    pid, priority, process_state.c_str(), cpu_core.c_str(), turn_time,
-                   wait_time, cpu_time, remain_time, currBurst);
+                   wait_time, cpu_time, remain_time);
             num_lines++;
         }
     }
